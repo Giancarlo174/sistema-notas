@@ -1,0 +1,22 @@
+/* Importaciones de Tailwind */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Estilos base */
+body {
+  color: #1f2937; /* text-gray-800 */
+}
+
+/* Utilidades personalizadas */
+.text-success {
+  color: #10b981; /* text-green-500 */
+}
+
+.text-warning {
+  color: #f59e0b; /* text-yellow-500 */
+}
+
+.text-danger {
+  color: #ef4444; /* text-red-500 */
+}
