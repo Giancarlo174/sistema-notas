@@ -3,6 +3,7 @@ import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useRouter } from 'next/router';
 import Auth from '../components/Auth';
 import Dashboard from '../components/Dashboard';
+import CustomHead from '../components/CustomHead';
 
 export default function Home() {
   const session = useSession();
@@ -13,13 +14,16 @@ export default function Home() {
     setLoading(false);
   }, [session]);
 
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
-  }
-
   return (
-    <div className="min-h-screen bg-gray-100">
-      {!session ? <Auth /> : <Dashboard />}
-    </div>
+    <>
+      <CustomHead title="Sistema de Seguimiento Académico" />
+      <div className="min-h-screen bg-gray-100">
+        {loading ? (
+          <div className="flex items-center justify-center min-h-screen">Cargando...</div>
+        ) : (
+          !session ? <Auth /> : <Dashboard />
+        )}
+      </div>
+    </>
   );
 }

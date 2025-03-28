@@ -2,6 +2,24 @@ import { useState } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { toast } from 'react-toastify';
 
+// Función para traducir mensajes de error de Supabase
+const translateAuthError = (errorMessage) => {
+  const errorTranslations = {
+    'Invalid login credentials': 'Credenciales de inicio de sesión inválidas',
+    'Email not confirmed': 'Correo electrónico no confirmado',
+    'User already registered': 'Usuario ya registrado',
+    'Password should be at least 6 characters': 'La contraseña debe tener al menos 6 caracteres',
+    'Email format is invalid': 'Formato de correo electrónico inválido',
+    'Rate limit exceeded': 'Límite de intentos excedido. Intenta más tarde',
+    'Something wrong with the service role': 'Error en el servicio de autenticación',
+    'DB error': 'Error en la base de datos',
+    'Auth api rate limit exceeded': 'Demasiados intentos. Intenta más tarde',
+    'Service not available': 'Servicio no disponible temporalmente'
+  };
+
+  return errorTranslations[errorMessage] || `Error: ${errorMessage}`;
+};
+
 export default function Auth() {
   const supabase = useSupabaseClient();
   const [loading, setLoading] = useState(false);
@@ -34,7 +52,8 @@ export default function Auth() {
         toast.success('Cuenta creada correctamente. Revisa tu email para confirmar tu cuenta.');
       }
     } catch (error) {
-      toast.error(error.message);
+      // Traducir el mensaje de error antes de mostrarlo
+      toast.error(translateAuthError(error.message));
     } finally {
       setLoading(false);
     }
