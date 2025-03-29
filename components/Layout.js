@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { toast } from 'react-toastify';
-import { FaSignOutAlt, FaGraduationCap, FaTimes } from 'react-icons/fa';
+import { FaSignOutAlt, FaGraduationCap, FaTimes, FaUserCog } from 'react-icons/fa';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import CustomHead from './CustomHead';
@@ -10,6 +10,7 @@ export default function Layout({ children, title }) {
   const supabase = useSupabaseClient();
   const router = useRouter();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   
   const handleLogoutClick = () => {
     setShowLogoutConfirm(true);
@@ -40,13 +41,34 @@ export default function Layout({ children, title }) {
             <FaGraduationCap className="text-2xl text-indigo-600" />
             <h1 className="text-xl font-bold text-gray-800">Seguimiento Académico</h1>
           </Link>
-          <button
-            onClick={handleLogoutClick}
-            className="flex items-center px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100"
-          >
-            <FaSignOutAlt className="mr-2" />
-            Cerrar Sesión
-          </button>
+          
+          {/* Usuario y menú */}
+          <div className="relative">
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="flex items-center px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100"
+            >
+              <FaUserCog className="mr-2" />
+              <span>Mi cuenta</span>
+            </button>
+            
+            {showUserMenu && (
+              <div className="absolute right-0 z-10 w-48 mt-2 bg-white rounded-md shadow-lg border border-gray-200">
+                <div className="py-1">
+                  <Link href="/auth/change-password" className="block w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                    Cambiar contraseña
+                  </Link>
+                  <button
+                    onClick={handleLogoutClick}
+                    className="block w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-gray-100"
+                  >
+                    <FaSignOutAlt className="inline mr-2" />
+                    Cerrar sesión
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
       <main className="container py-6 mx-auto">{children}</main>
