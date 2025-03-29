@@ -73,3 +73,7 @@ local.config.js
 *.key
 *.crt
 *.pem
+
+
+# Archivos de configuración de la base de datos
+queries.sql
