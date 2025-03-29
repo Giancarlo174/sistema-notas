@@ -1,23 +1,60 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import usePersistForm from '../hooks/usePersistForm';
+import { useFormContext } from '../contexts/FormContext';
 
 export default function ActivityForm({ category, onSubmit, onCancel, initialData }) {
-  const [formData, setFormData] = useState({
-    name: initialData?.name || '',
-    max_score: initialData?.max_score || 100,
-    obtained_score: initialData?.obtained_score || '',
-    is_pending: initialData ? initialData.is_pending : false
-  });
+  const formId = `activity_${category.id}_${initialData?.id || 'new'}`;
+  
+  // Usa un estado separado para controlar si ya se ha montado el componente
+  const [hasMounted, setHasMounted] = useState(false);
+  
+  // Usar nuestro hook para persistir datos
+  const [formData, setFormData, resetForm] = usePersistForm(
+    `${category.id}_${initialData?.id || 'new'}`,
+    {
+      name: initialData?.name || '',
+      max_score: initialData?.max_score || 100,
+      obtained_score: initialData?.obtained_score || '',
+      is_pending: initialData ? initialData.is_pending : false
+    },
+    'activity'
+  );
+  
   const [errors, setErrors] = useState({});
+  const { closeForm } = useFormContext();
+
+  // Marcar como montado después del renderizado inicial
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  // Guardar datos en localStorage al cambiar de pestaña o antes de descargar página
+  useEffect(() => {
+    if (!hasMounted) return;
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // Forzar guardado explícito al ocultar la pestaña
+        localStorage.setItem(`form_activity_${category.id}_${initialData?.id || 'new'}`, 
+          JSON.stringify(formData));
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [hasMounted, formData, category.id, initialData]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       [name]: type === 'checkbox' ? checked : 
               type === 'number' ? (value === '' ? '' : parseFloat(value)) : 
               value
-    });
+    }));
     
     if (errors[name]) {
       setErrors({
@@ -64,13 +101,15 @@ export default function ActivityForm({ category, onSubmit, onCancel, initialData
     
     const success = await onSubmit(finalData);
     if (success) {
-      setFormData({
-        name: '',
-        max_score: 100,
-        obtained_score: '',
-        is_pending: false 
-      });
+      resetForm(); // Limpiar datos al enviar con éxito
+      closeForm(formId);
     }
+  };
+
+  const handleCancel = () => {
+    resetForm(); // Esto limpiará los datos de localStorage
+    closeForm(formId);
+    onCancel();
   };
 
   return (
@@ -162,7 +201,7 @@ export default function ActivityForm({ category, onSubmit, onCancel, initialData
           <div className="flex justify-end space-x-3 mt-6">
             <button
               type="button"
-              onClick={onCancel}
+              onClick={handleCancel}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
             >
               Cancelar

@@ -3,13 +3,12 @@ import { FaEdit, FaTrash } from 'react-icons/fa';
 import ActivityForm from './ActivityForm';
 import ConfirmationModal from './ConfirmationModal';
 import { calculatePercentage, assignLetterGrade, getStatusClass } from '../utils/gradeUtils';
+import useUIState from '../hooks/useUIState';
 
 export default function ActivityList({ activities, categoryId, onUpdateActivity, onDeleteActivity }) {
-  const [editingActivity, setEditingActivity] = useState(null);
-  // Estado para el modal de confirmación
+  const [editingActivity, setEditingActivity] = useUIState(`editing_activity_${categoryId}`, null);
   const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, name: '', categoryId: null });
   
-  // Función para mostrar el modal de confirmación
   const showDeleteConfirmation = (activity) => {
     setConfirmDelete({
       show: true,

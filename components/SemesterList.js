@@ -5,16 +5,17 @@ import SemesterForm from './SemesterForm';
 import ConfirmationModal from './ConfirmationModal';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { toast } from 'react-toastify';
+import useUIState from '../hooks/useUIState';
 
 export default function SemesterList({ 
   semesters, 
   onDelete, 
   selectedSemesters,
-  setSelectedSemesters 
+  setSelectedSemesters
 }) {
   const supabase = useSupabaseClient();
-  const [editingSemester, setEditingSemester] = useState(null);
-  const [menuOpen, setMenuOpen] = useState(null);
+  const [editingSemester, setEditingSemester] = useUIState('editing_semester', null);
+  const [menuOpen, setMenuOpen] = useUIState('semester_menu_open', null);
   const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, name: '' });
   const menuRef = useRef(null);
 
@@ -150,3 +151,4 @@ export default function SemesterList({
     </div>
   );
 }
+

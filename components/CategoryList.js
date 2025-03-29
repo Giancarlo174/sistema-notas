@@ -5,6 +5,7 @@ import ActivityForm from './ActivityForm';
 import ActivityList from './ActivityList';
 import ConfirmationModal from './ConfirmationModal';
 import { calculateCategoryContribution } from '../utils/gradeUtils';
+import { useFormContext } from '../contexts/FormContext';
 
 export default function CategoryList({
   categories,
@@ -15,26 +16,31 @@ export default function CategoryList({
   onUpdateActivity,
   onDeleteActivity
 }) {
-  const [editingCategory, setEditingCategory] = useState(null);
-  const [addingActivityTo, setAddingActivityTo] = useState(null);
-  const [expandedCategories, setExpandedCategories] = useState({});
-  const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, name: '' });
+  const { isFormOpen, openForm, closeForm } = useFormContext();
+  const [expandedCategories, setExpandedCategories] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('expanded_categories');
+        return saved ? JSON.parse(saved) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+    return {};
+  });
   
-  // Estados para búsqueda y selección múltiple
+  const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, name: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [confirmMultiDelete, setConfirmMultiDelete] = useState(false);
 
-  // Filtrar categorías según el término de búsqueda
   const filteredCategories = categories.filter(category => 
     category.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Comprobar si todas las categorías filtradas están seleccionadas
   const allFilteredSelected = filteredCategories.length > 0 && 
     filteredCategories.every(cat => selectedCategories.includes(cat.id));
 
-  // Manejar "seleccionar todos"
   const handleSelectAll = () => {
     if (allFilteredSelected) {
       setSelectedCategories(prevSelected => 
@@ -54,7 +60,6 @@ export default function CategoryList({
     }
   };
 
-  // Manejar selección individual
   const handleSelectCategory = (categoryId) => {
     if (selectedCategories.includes(categoryId)) {
       setSelectedCategories(selectedCategories.filter(id => id !== categoryId));
@@ -63,7 +68,6 @@ export default function CategoryList({
     }
   };
 
-  // Función para eliminar múltiples categorías
   const handleDeleteMultipleCategories = () => {
     selectedCategories.forEach(categoryId => {
       onDeleteCategory(categoryId);
@@ -72,18 +76,20 @@ export default function CategoryList({
     setConfirmMultiDelete(false);
   };
 
-  const getCurrentTotal = () => {
+  const getCurrentTotal = (excludeCategoryId = null) => {
     return categories.reduce((sum, cat) => {
-      if (editingCategory && cat.id === editingCategory.id) return sum;
+      if (excludeCategoryId && cat.id === excludeCategoryId) return sum;
       return sum + cat.percentage;
     }, 0);
   };
 
   const toggleCategoryExpand = (categoryId) => {
-    setExpandedCategories({
+    const newState = {
       ...expandedCategories,
       [categoryId]: !expandedCategories[categoryId]
-    });
+    };
+    setExpandedCategories(newState);
+    localStorage.setItem('expanded_categories', JSON.stringify(newState));
   };
 
   const showDeleteConfirmation = (category) => {
@@ -94,9 +100,22 @@ export default function CategoryList({
     });
   };
 
+  const handleEditCategory = (category) => {
+    openForm(`edit_category_${category.id}`);
+  };
+
+  const handleAddActivity = (category) => {
+    openForm(`add_activity_${category.id}`);
+    const newState = {
+      ...expandedCategories,
+      [category.id]: true
+    };
+    setExpandedCategories(newState);
+    localStorage.setItem('expanded_categories', JSON.stringify(newState));
+  };
+
   return (
     <div className="space-y-6">
-      {/* Barra de búsqueda y controles */}
       <div className="p-4 bg-white rounded-lg shadow mb-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
           <div className="w-full md:w-1/2 relative">
@@ -180,7 +199,7 @@ export default function CategoryList({
 
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => setEditingCategory(category)}
+                    onClick={() => handleEditCategory(category)}
                     className="p-1 text-gray-500 rounded hover:bg-gray-100 hover:text-indigo-600"
                     title="Editar categoría"
                   >
@@ -213,7 +232,7 @@ export default function CategoryList({
                   </div>
 
                   <button
-                    onClick={() => setAddingActivityTo(category)}
+                    onClick={() => handleAddActivity(category)}
                     className="flex items-center px-2 py-1 text-xs text-white bg-indigo-600 rounded hover:bg-indigo-700"
                   >
                     <FaPlus className="mr-1" /> Actividad
@@ -250,37 +269,35 @@ export default function CategoryList({
         })
       )}
       
-      {editingCategory && (
-        <CategoryForm
-          initialData={editingCategory}
-          onSubmit={(data) => {
-            const result = onUpdateCategory(editingCategory.id, data);
-            if (result) setEditingCategory(null);
-            return result;
-          }}
-          onCancel={() => setEditingCategory(null)}
-          currentTotal={getCurrentTotal()}
-        />
-      )}
-
-      {addingActivityTo && (
-        <ActivityForm
-          category={addingActivityTo}
-          onSubmit={(data) => {
-            const result = onAddActivity(addingActivityTo.id, data);
-            if (result) {
-              setAddingActivityTo(null);
-              setExpandedCategories({
-                ...expandedCategories,
-                [addingActivityTo.id]: true
-              });
-            }
-            return result;
-          }}
-          onCancel={() => setAddingActivityTo(null)}
-        />
-      )}
-
+      {categories.map(category => (
+        <>
+          {isFormOpen(`edit_category_${category.id}`) && (
+            <CategoryForm
+              initialData={category}
+              onSubmit={(data) => {
+                const result = onUpdateCategory(category.id, data);
+                if (result) closeForm(`edit_category_${category.id}`);
+                return result;
+              }}
+              onCancel={() => closeForm(`edit_category_${category.id}`)}
+              currentTotal={getCurrentTotal(category.id)}
+            />
+          )}
+          
+          {isFormOpen(`add_activity_${category.id}`) && (
+            <ActivityForm
+              category={category}
+              onSubmit={(data) => {
+                const result = onAddActivity(category.id, data);
+                if (result) closeForm(`add_activity_${category.id}`);
+                return result;
+              }}
+              onCancel={() => closeForm(`add_activity_${category.id}`)}
+            />
+          )}
+        </>
+      ))}
+      
       <ConfirmationModal
         isOpen={confirmDelete.show}
         onClose={() => setConfirmDelete({ show: false, id: null, name: '' })}
@@ -291,7 +308,6 @@ export default function CategoryList({
         cancelText="Cancelar"
       />
 
-      {/* Modal para eliminación múltiple */}
       <ConfirmationModal
         isOpen={confirmMultiDelete}
         onClose={() => setConfirmMultiDelete(false)}

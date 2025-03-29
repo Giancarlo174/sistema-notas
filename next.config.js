@@ -27,6 +27,12 @@ const nextConfig = {
       },
     ];
   },
+  // Configuración de redirección de Supabase
+  publicRuntimeConfig: {
+    site: {
+      url: process.env.NEXT_PUBLIC_SITE_URL || 'https://sistema-notas-2biu5wrfo-romero-projects.vercel.app',
+    },
+  },
 };
 
 module.exports = nextConfig;

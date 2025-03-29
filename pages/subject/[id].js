@@ -8,6 +8,7 @@ import Link from 'next/link';
 import CategoryList from '../../components/CategoryList';
 import CategoryForm from '../../components/CategoryForm';
 import { calculateSubjectGrade, getStatusClass } from '../../utils/gradeUtils';
+import useUIState from '../../hooks/useUIState';
 
 export default function SubjectPage() {
   const router = useRouter();
@@ -20,8 +21,8 @@ export default function SubjectPage() {
   const [categories, setCategories] = useState([]);
   const [activities, setActivities] = useState({});
   const [loading, setLoading] = useState(true);
-  const [showCategoryForm, setShowCategoryForm] = useState(false);
-  const [editingSubject, setEditingSubject] = useState(false);
+  const [showCategoryForm, setShowCategoryForm] = useUIState(`show_category_form_${id}`, false);
+  const [editingSubject, setEditingSubject] = useUIState(`editing_subject_${id}`, false);
   const [subjectForm, setSubjectForm] = useState({
     name: '',
     min_passing_grade: 61,
