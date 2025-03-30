@@ -4,6 +4,9 @@ export default function usePersistForm(formKey, initialValues = {}, formType = '
   const storageKey = `form_${formType}_${formKey}`;
   const visibilityChangedRef = useRef(false);
   
+  // Añade una lista de campos que no deben persistirse
+  const sensitiveFields = ['password', 'token', 'secret', 'auth', 'credential'];
+
   // Recuperar datos guardados o usar valores iniciales
   const getSavedValue = () => {
     if (typeof window === 'undefined') return initialValues;
@@ -22,10 +25,31 @@ export default function usePersistForm(formKey, initialValues = {}, formType = '
 
   const [formData, setFormData] = useState(getSavedValue);
   
+  // Cuando guardes en localStorage, filtra campos sensibles
+  const saveToStorage = (key, data) => {
+    // Si el objeto tiene algún campo sensible, no lo guardes completo
+    const hasSensitiveData = Object.keys(data).some(field => 
+      sensitiveFields.some(sensitive => field.toLowerCase().includes(sensitive))
+    );
+    
+    if (hasSensitiveData) {
+      // Crea una copia filtrada sin los campos sensibles
+      const safeData = { ...data };
+      Object.keys(safeData).forEach(field => {
+        if (sensitiveFields.some(sensitive => field.toLowerCase().includes(sensitive))) {
+          delete safeData[field];
+        }
+      });
+      localStorage.setItem(key, JSON.stringify(safeData));
+    } else {
+      localStorage.setItem(key, JSON.stringify(data));
+    }
+  };
+
   // Guardar en localStorage cada vez que cambian los datos
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem(storageKey, JSON.stringify(formData));
+      saveToStorage(storageKey, formData);
     }
   }, [formData, storageKey]);
   
@@ -34,7 +58,7 @@ export default function usePersistForm(formKey, initialValues = {}, formType = '
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         // Al ocultar la pestaña, guardar estado actual
-        localStorage.setItem(storageKey, JSON.stringify(formData));
+        saveToStorage(storageKey, formData);
         visibilityChangedRef.current = true;
       } else if (document.visibilityState === 'visible' && visibilityChangedRef.current) {
         // Al regresar a la pestaña, recuperar estado guardado
@@ -53,7 +77,7 @@ export default function usePersistForm(formKey, initialValues = {}, formType = '
     
     // Garantizar que el evento beforeunload siempre guarde datos
     const handleBeforeUnload = () => {
-      localStorage.setItem(storageKey, JSON.stringify(formData));
+      saveToStorage(storageKey, formData);
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     

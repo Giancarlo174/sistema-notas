@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { toast } from 'react-toastify';
 import { FaSignOutAlt, FaGraduationCap, FaTimes, FaUserCog } from 'react-icons/fa';
@@ -10,27 +10,41 @@ export default function Layout({ children, title }) {
   const supabase = useSupabaseClient();
   const router = useRouter();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
+
   const handleLogoutClick = () => {
     setShowLogoutConfirm(true);
   };
-  
+
   const handleSignOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
-      // Cerrar el diálogo de confirmación
+
       setShowLogoutConfirm(false);
-      
-      // Redireccionar a la página principal
       toast.success('Sesión cerrada correctamente');
       router.push('/');
     } catch (error) {
       toast.error('Error al cerrar sesión: ' + error.message);
     }
   };
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target) && isUserMenuOpen) {
+        setIsUserMenuOpen(false);
+      }
+    }
+
+    if (isUserMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isUserMenuOpen]);
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -41,18 +55,17 @@ export default function Layout({ children, title }) {
             <FaGraduationCap className="text-2xl text-indigo-600" />
             <h1 className="text-xl font-bold text-gray-800">Seguimiento Académico</h1>
           </Link>
-          
-          {/* Usuario y menú */}
-          <div className="relative">
+
+          <div className="relative" ref={userMenuRef}>
             <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
               className="flex items-center px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100"
             >
               <FaUserCog className="mr-2" />
               <span>Mi cuenta</span>
             </button>
-            
-            {showUserMenu && (
+
+            {isUserMenuOpen && (
               <div className="absolute right-0 z-10 w-48 mt-2 bg-white rounded-md shadow-lg border border-gray-200">
                 <div className="py-1">
                   <Link href="/auth/change-password" className="block w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
@@ -77,14 +90,13 @@ export default function Layout({ children, title }) {
           © {new Date().getFullYear()} Sistema de Seguimiento Académico
         </div>
       </footer>
-      
-      {/* Modal de confirmación para cerrar sesión */}
+
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium">Confirmar cierre de sesión</h3>
-              <button 
+              <button
                 onClick={() => setShowLogoutConfirm(false)}
                 className="text-gray-400 hover:text-gray-600"
               >

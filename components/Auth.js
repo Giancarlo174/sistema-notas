@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { toast } from 'react-toastify';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
@@ -31,6 +31,12 @@ export default function Auth() {
   const [registrationComplete, setRegistrationComplete] = useState(false);
   const [forgotPassword, setForgotPassword] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
+
+  useEffect(() => {
+    // Limpia cualquier credencial almacenada
+    localStorage.removeItem('pendingAuthEmail');
+    localStorage.removeItem('pendingAuthPassword');
+  }, []);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -66,10 +72,6 @@ export default function Auth() {
           password,
         });
       } else {
-        // Al registrarse, guardar credenciales en localStorage para auto-login después
-        localStorage.setItem('pendingAuthEmail', email);
-        localStorage.setItem('pendingAuthPassword', password);
-        
         response = await supabase.auth.signUp({
           email,
           password,
@@ -138,11 +140,6 @@ export default function Auth() {
   };
 
   const handleBackToLogin = () => {
-    // Limpiar cualquier token o sesión pendiente
-    localStorage.removeItem('pendingPasswordReset');
-    localStorage.removeItem('pendingAuthEmail');
-    localStorage.removeItem('pendingAuthPassword');
-    
     setForgotPassword(false);
     setResetEmailSent(false);
   };
