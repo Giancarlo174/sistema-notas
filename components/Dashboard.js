@@ -5,7 +5,7 @@ import SemesterList from './SemesterList';
 import SemesterForm from './SemesterForm';
 import Layout from './Layout';
 import ConfirmationModal from './ConfirmationModal';
-import { FaTrash, FaSort } from 'react-icons/fa';
+import { FaTrash, FaSort, FaCopy } from 'react-icons/fa';
 
 export default function Dashboard() {
   const supabase = useSupabaseClient();
@@ -16,13 +16,12 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSemesters, setSelectedSemesters] = useState([]);
   const [confirmMultiDelete, setConfirmMultiDelete] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
   
-  // Nuevo estado para controlar el ordenamiento
   const [sortOrder, setSortOrder] = useState(() => {
-    // Recuperar preferencia de orden del localStorage
     if (typeof window !== 'undefined') {
       const savedOrder = localStorage.getItem('semester_sort_order');
-      return savedOrder || 'newest'; // Por defecto, mostrar los más nuevos primero
+      return savedOrder || 'newest';
     }
     return 'newest';
   });
@@ -31,7 +30,6 @@ export default function Dashboard() {
     if (user) fetchSemesters();
   }, [user]);
 
-  // Guardar preferencia de ordenamiento en localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('semester_sort_order', sortOrder);
@@ -44,7 +42,6 @@ export default function Dashboard() {
       
       let query = supabase.from('semesters').select('*');
       
-      // Aplicar orden según la preferencia
       if (sortOrder === 'newest') {
         query = query.order('created_at', { ascending: false });
       } else if (sortOrder === 'oldest') {
@@ -65,7 +62,6 @@ export default function Dashboard() {
     }
   }
 
-  // Cuando cambia el orden, volver a cargar los semestres
   useEffect(() => {
     if (user) fetchSemesters();
   }, [sortOrder]);
@@ -132,6 +128,109 @@ export default function Dashboard() {
     );
   }
 
+  async function duplicateSelectedSemesters() {
+    try {
+      setIsDuplicating(true);
+      
+      const selectedSemestersData = semesters.filter(sem => selectedSemesters.includes(sem.id));
+      const newSemesters = [];
+      
+      const duplicatingToast = toast.info(
+        `Duplicando ${selectedSemestersData.length} semestre(s)... Por favor espera.`,
+        { autoClose: false }
+      );
+      
+      for (const semester of selectedSemestersData) {
+        const { data: newSemesterData, error: semesterError } = await supabase
+          .from('semesters')
+          .insert([{ 
+            name: `${semester.name} (copia)`, 
+            user_id: user.id 
+          }])
+          .select();
+        
+        if (semesterError) throw semesterError;
+        const newSemester = newSemesterData[0];
+        newSemesters.push(newSemester);
+        
+        const { data: subjects, error: subjectsError } = await supabase
+          .from('subjects')
+          .select('*')
+          .eq('semester_id', semester.id);
+        
+        if (subjectsError) throw subjectsError;
+        
+        for (const subject of subjects || []) {
+          const { data: newSubjectData, error: newSubjectError } = await supabase
+            .from('subjects')
+            .insert([{
+              semester_id: newSemester.id,
+              name: `${subject.name} (copia)`,
+              min_passing_grade: subject.min_passing_grade
+            }])
+            .select();
+          
+          if (newSubjectError) throw newSubjectError;
+          const newSubject = newSubjectData[0];
+          
+          const { data: categories, error: categoriesError } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('subject_id', subject.id);
+          
+          if (categoriesError) throw categoriesError;
+          
+          for (const category of categories || []) {
+            const { data: newCategoryData, error: newCategoryError } = await supabase
+              .from('categories')
+              .insert([{
+                subject_id: newSubject.id,
+                name: `${category.name} (copia)`,
+                percentage: category.percentage,
+                calculation_mode: category.calculation_mode,
+                total_activities: category.total_activities
+              }])
+              .select();
+            
+            if (newCategoryError) throw newCategoryError;
+            const newCategory = newCategoryData[0];
+            
+            const { data: activities, error: activitiesError } = await supabase
+              .from('activities')
+              .select('*')
+              .eq('category_id', category.id);
+            
+            if (activitiesError) throw activitiesError;
+            
+            for (const activity of activities || []) {
+              const { error: newActivityError } = await supabase
+                .from('activities')
+                .insert([{
+                  category_id: newCategory.id,
+                  name: `${activity.name} (copia)`,
+                  max_score: activity.max_score,
+                  obtained_score: activity.obtained_score,
+                  is_pending: activity.is_pending
+                }]);
+              
+              if (newActivityError) throw newActivityError;
+            }
+          }
+        }
+      }
+      
+      setSemesters([...newSemesters, ...semesters]);
+      setSelectedSemesters([]);
+      
+      toast.dismiss(duplicatingToast);
+      toast.success(`${newSemesters.length} semestre(s) duplicados con éxito`);
+    } catch (error) {
+      toast.error('Error duplicando semestres: ' + error.message);
+    } finally {
+      setIsDuplicating(false);
+    }
+  }
+
   const filteredSemesters = semesters.filter(semester => 
     semester.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -158,7 +257,6 @@ export default function Dashboard() {
     }
   };
 
-  // Función para manejar el cambio de orden
   const handleSortChange = (e) => {
     setSortOrder(e.target.value);
   };
@@ -177,12 +275,35 @@ export default function Dashboard() {
             </button>
             
             {selectedSemesters.length > 0 && (
-              <button
-                onClick={() => setConfirmMultiDelete(true)}
-                className="flex items-center px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700"
-              >
-                <FaTrash className="mr-2" /> Eliminar {selectedSemesters.length} semestre(s)
-              </button>
+              <>
+                <button
+                  onClick={duplicateSelectedSemesters}
+                  disabled={isDuplicating}
+                  className={`flex items-center px-4 py-2 text-white bg-green-600 rounded-md ${
+                    isDuplicating ? 'opacity-75 cursor-not-allowed' : 'hover:bg-green-700'
+                  }`}
+                >
+                  {isDuplicating ? (
+                    <>
+                      <svg className="w-4 h-4 mr-2 text-white animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Duplicando...
+                    </>
+                  ) : (
+                    <>
+                      <FaCopy className="mr-2" /> Duplicar {selectedSemesters.length} semestre(s)
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setConfirmMultiDelete(true)}
+                  className="flex items-center px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700"
+                >
+                  <FaTrash className="mr-2" /> Eliminar {selectedSemesters.length} semestre(s)
+                </button>
+              </>
             )}
           </div>
         </div>

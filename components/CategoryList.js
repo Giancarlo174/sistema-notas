@@ -15,7 +15,7 @@ export default function CategoryList({
   onAddActivity,
   onUpdateActivity,
   onDeleteActivity,
-  onDeleteMultipleCategories // Nueva prop
+  onDeleteMultipleCategories
 }) {
   const { isFormOpen, openForm, closeForm } = useFormContext();
   const [expandedCategories, setExpandedCategories] = useState(() => {
@@ -70,10 +70,7 @@ export default function CategoryList({
   };
 
   const handleDeleteMultipleCategories = () => {
-    // Llama a la función pasada desde el padre
     onDeleteMultipleCategories(selectedCategories);
-    
-    // Limpiar la selección y cerrar el modal
     setSelectedCategories([]);
     setConfirmMultiDelete(false);
   };

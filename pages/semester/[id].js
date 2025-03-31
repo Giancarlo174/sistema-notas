@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { useSupabaseClient, useUser } from '@supabase/auth-helpers-react';
 import { toast } from 'react-toastify';
 import Layout from '../../components/Layout';
-import { FaPlus, FaArrowLeft, FaTrash, FaSearch, FaSort } from 'react-icons/fa';
+import { FaPlus, FaArrowLeft, FaTrash, FaSearch, FaSort, FaCopy } from 'react-icons/fa';
 import Link from 'next/link';
 import { calculateSubjectGrade, getStatusClass } from '../../utils/gradeUtils';
 import ConfirmationModal from '../../components/ConfirmationModal';
@@ -33,6 +33,9 @@ export default function SemesterPage() {
     }
     return 'newest';
   });
+
+  // Estado para duplicación de materias
+  const [isDuplicatingSubjects, setIsDuplicatingSubjects] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -170,6 +173,92 @@ export default function SemesterPage() {
     }
   }
 
+  async function duplicateMultipleSubjects() {
+    try {
+      setIsDuplicatingSubjects(true);
+      
+      const selectedSubjectsData = subjects.filter(subj => selectedSubjects.includes(subj.id));
+      const newSubjects = [];
+      
+      const duplicatingToast = toast.info(
+        `Duplicando ${selectedSubjectsData.length} materia(s)... Por favor espera.`,
+        { autoClose: false }
+      );
+      
+      for (const subject of selectedSubjectsData) {
+        const { data: newSubjectData, error: subjectError } = await supabase
+          .from('subjects')
+          .insert([{
+            semester_id: id,
+            name: `${subject.name} (copia)`,
+            min_passing_grade: subject.min_passing_grade
+          }])
+          .select();
+        
+        if (subjectError) throw subjectError;
+        const newSubject = newSubjectData[0];
+        newSubjects.push(newSubject);
+        
+        const { data: categories, error: categoriesError } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('subject_id', subject.id);
+        
+        if (categoriesError) throw categoriesError;
+        
+        for (const category of categories || []) {
+          const { data: newCategoryData, error: newCategoryError } = await supabase
+            .from('categories')
+            .insert([{
+              subject_id: newSubject.id,
+              name: `${category.name} (copia)`,
+              percentage: category.percentage,
+              calculation_mode: category.calculation_mode,
+              total_activities: category.total_activities
+            }])
+            .select();
+          
+          if (newCategoryError) throw newCategoryError;
+          const newCategory = newCategoryData[0];
+          
+          const { data: activities, error: activitiesError } = await supabase
+            .from('activities')
+            .select('*')
+            .eq('category_id', category.id);
+          
+          if (activitiesError) throw activitiesError;
+          
+          for (const activity of activities || []) {
+            const { error: newActivityError } = await supabase
+              .from('activities')
+              .insert([{
+                category_id: newCategory.id,
+                name: `${activity.name} (copia)`,
+                max_score: activity.max_score,
+                obtained_score: activity.obtained_score,
+                is_pending: activity.is_pending
+              }]);
+            
+            if (newActivityError) throw newActivityError;
+          }
+        }
+      }
+      
+      setSubjects([...newSubjects, ...subjects]);
+      setSelectedSubjects([]);
+      
+      toast.dismiss(duplicatingToast);
+      toast.success(`${newSubjects.length} materia(s) duplicadas con éxito`);
+      
+      fetchSemesterData();
+      
+    } catch (error) {
+      toast.error('Error duplicando materias: ' + error.message);
+    } finally {
+      setIsDuplicatingSubjects(false);
+    }
+  }
+
   const showDeleteConfirmation = (subject) => {
     setConfirmDelete({
       show: true,
@@ -299,12 +388,35 @@ export default function SemesterPage() {
               </div>
               
               {selectedSubjects.length > 0 && (
-                <button
-                  onClick={() => setConfirmMultiDelete(true)}
-                  className="flex items-center px-3 py-1 text-white bg-red-600 rounded-md hover:bg-red-700"
-                >
-                  <FaTrash className="mr-1" /> Eliminar {selectedSubjects.length}
-                </button>
+                <>
+                  <button
+                    onClick={duplicateMultipleSubjects}
+                    disabled={isDuplicatingSubjects}
+                    className={`flex items-center px-3 py-1 text-white bg-green-600 rounded-md ${
+                      isDuplicatingSubjects ? 'opacity-75 cursor-not-allowed' : 'hover:bg-green-700'
+                    }`}
+                  >
+                    {isDuplicatingSubjects ? (
+                      <>
+                        <svg className="w-4 h-4 mr-1 text-white animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Duplicando...
+                      </>
+                    ) : (
+                      <>
+                        <FaCopy className="mr-1" /> Duplicar {selectedSubjects.length}
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setConfirmMultiDelete(true)}
+                    className="flex items-center px-3 py-1 text-white bg-red-600 rounded-md hover:bg-red-700"
+                  >
+                    <FaTrash className="mr-1" /> Eliminar {selectedSubjects.length}
+                  </button>
+                </>
               )}
             </div>
           </div>

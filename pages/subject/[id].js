@@ -34,6 +34,38 @@ export default function SubjectPage() {
     }
   }, [id, user]);
 
+  useEffect(() => {
+    // Agregar listener para actualizar actividades en tiempo real desde componente hijo
+    const handleActivitiesUpdated = (event) => {
+      const { categoryId, activities: updatedActivities } = event.detail;
+      
+      // Actualizar el estado local con las actividades actualizadas
+      setActivities(prevActivities => ({
+        ...prevActivities,
+        [categoryId]: updatedActivities
+      }));
+    };
+    
+    window.addEventListener('activitiesUpdated', handleActivitiesUpdated);
+    
+    return () => {
+      window.removeEventListener('activitiesUpdated', handleActivitiesUpdated);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Agregar listener para forzar recarga de datos
+    const handleForceRefresh = () => {
+      fetchData();
+    };
+    
+    window.addEventListener('forceDataRefresh', handleForceRefresh);
+    
+    return () => {
+      window.removeEventListener('forceDataRefresh', handleForceRefresh);
+    };
+  }, []);
+
   async function fetchData() {
     try {
       setLoading(true);

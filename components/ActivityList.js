@@ -1,37 +1,38 @@
 import { useState, useEffect } from 'react';
-import { FaEdit, FaTrash, FaSort } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaSort, FaCopy } from 'react-icons/fa';
 import ActivityForm from './ActivityForm';
 import ConfirmationModal from './ConfirmationModal';
 import { calculatePercentage, assignLetterGrade, getStatusClass } from '../utils/gradeUtils';
 import useUIState from '../hooks/useUIState';
+import { useSupabaseClient } from '@supabase/auth-helpers-react';
+import { toast } from 'react-toastify';
 
 export default function ActivityList({ activities, categoryId, onUpdateActivity, onDeleteActivity }) {
+  const supabase = useSupabaseClient();
   const [editingActivity, setEditingActivity] = useUIState(`editing_activity_${categoryId}`, null);
   const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, name: '', categoryId: null });
-  
-  // Nuevo estado para controlar el ordenamiento de actividades
+  const [selectedActivities, setSelectedActivities] = useState([]);
+  const [isDuplicatingActivities, setIsDuplicatingActivities] = useState(false);
+  const [confirmMultiDelete, setConfirmMultiDelete] = useState(false);
+
   const [sortOrder, setSortOrder] = useState(() => {
-    // Recuperar preferencia de orden del localStorage
     if (typeof window !== 'undefined') {
       const savedOrder = localStorage.getItem(`activity_sort_order_${categoryId}`);
-      return savedOrder || 'newest'; // Por defecto, mostrar las más nuevas primero
+      return savedOrder || 'newest';
     }
     return 'newest';
   });
-  
-  // Guardar preferencia de ordenamiento en localStorage
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(`activity_sort_order_${categoryId}`, sortOrder);
     }
   }, [sortOrder, categoryId]);
 
-  // Función para manejar el cambio de orden
   const handleSortChange = (e) => {
     setSortOrder(e.target.value);
   };
 
-  // Ordenar actividades según la preferencia del usuario
   const sortedActivities = [...activities].sort((a, b) => {
     if (sortOrder === 'newest') {
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
@@ -50,7 +51,7 @@ export default function ActivityList({ activities, categoryId, onUpdateActivity,
     }
     return 0;
   });
-  
+
   const showDeleteConfirmation = (activity) => {
     setConfirmDelete({
       show: true,
@@ -60,9 +61,153 @@ export default function ActivityList({ activities, categoryId, onUpdateActivity,
     });
   };
 
+  const handleDuplicateActivities = async () => {
+    try {
+      setIsDuplicatingActivities(true);
+
+      const activitiesToDuplicate = activities.filter(act => selectedActivities.includes(act.id));
+
+      const duplicatingToast = toast.info(
+        `Duplicando ${activitiesToDuplicate.length} actividad(es)... Por favor espera.`,
+        { autoClose: false }
+      );
+
+      for (const activity of activitiesToDuplicate) {
+        const { error } = await supabase
+          .from('activities')
+          .insert([{
+            category_id: categoryId,
+            name: `${activity.name} (copia)`,
+            max_score: activity.max_score,
+            obtained_score: activity.obtained_score,
+            is_pending: activity.is_pending
+          }]);
+
+        if (error) throw error;
+      }
+
+      toast.dismiss(duplicatingToast);
+      toast.success(`${activitiesToDuplicate.length} actividad(es) duplicadas con éxito`);
+
+      window.location.reload();
+
+    } catch (error) {
+      toast.error('Error duplicando actividades: ' + error.message);
+    } finally {
+      setIsDuplicatingActivities(false);
+      setSelectedActivities([]);
+    }
+  };
+
+  const handleDeleteMultipleActivities = async () => {
+    try {
+      const activitiesToDelete = activities.filter(act => selectedActivities.includes(act.id));
+      
+      // Cierra modal inmediatamente para mejor UX
+      setConfirmMultiDelete(false);
+      
+      // Mostrar toast de "eliminando"
+      const deletingToast = toast.info(
+        `Eliminando ${activitiesToDelete.length} actividad(es)...`,
+        { autoClose: false }
+      );
+      
+      // Actualizar estado local primero para reflejo inmediato en UI
+      const remainingActivities = sortedActivities.filter(
+        activity => !selectedActivities.includes(activity.id)
+      );
+      
+      // Para cada actividad a eliminar
+      for (const activity of activitiesToDelete) {
+        await onDeleteActivity(activity.id, categoryId);
+      }
+      
+      // Enviar evento explícito para actualizar UI
+      window.dispatchEvent(new CustomEvent('forceDataRefresh', {
+        detail: { timestamp: Date.now() }
+      }));
+      
+      // Limpiar selección
+      setSelectedActivities([]);
+      
+      // Actualizar UI con las actividades restantes
+      toast.dismiss(deletingToast);
+      toast.success(`${activitiesToDelete.length} actividad(es) eliminadas con éxito`);
+      
+      // Forzar recarga de datos después de 500ms para asegurar sincronización
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+      
+    } catch (error) {
+      toast.error('Error eliminando actividades: ' + error.message);
+      window.location.reload();
+    }
+  };
+
+  const handleSelectActivity = (activityId) => {
+    if (selectedActivities.includes(activityId)) {
+      setSelectedActivities(selectedActivities.filter(id => id !== activityId));
+    } else {
+      setSelectedActivities([...selectedActivities, activityId]);
+    }
+  };
+
+  const handleSelectAllActivities = () => {
+    if (selectedActivities.length === sortedActivities.length) {
+      setSelectedActivities([]);
+    } else {
+      setSelectedActivities(sortedActivities.map(a => a.id));
+    }
+  };
+
   return (
     <div className="mt-2 overflow-hidden rounded-md border border-gray-200">
-      <div className="p-2 bg-gray-50 flex items-center justify-end">
+      <div className="p-2 bg-gray-50 flex items-center justify-between">
+        <div className="flex items-center">
+          {selectedActivities.length > 0 ? (
+            <div className="flex space-x-2">
+              <button
+                onClick={handleDuplicateActivities}
+                disabled={isDuplicatingActivities}
+                className={`flex items-center px-2 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700 ${
+                  isDuplicatingActivities ? 'opacity-75 cursor-not-allowed' : ''
+                }`}
+              >
+                {isDuplicatingActivities ? (
+                  <>
+                    <svg className="w-3 h-3 mr-1 text-white animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Duplicando...
+                  </>
+                ) : (
+                  <>
+                    <FaCopy className="mr-1" /> Duplicar {selectedActivities.length}
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setConfirmMultiDelete(true)}
+                className="flex items-center px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700"
+              >
+                <FaTrash className="mr-1" /> Eliminar {selectedActivities.length}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                checked={selectedActivities.length === sortedActivities.length && sortedActivities.length > 0}
+                onChange={handleSelectAllActivities}
+                className="w-3 h-3 mr-1 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              />
+              <label className="text-xs text-gray-500">Seleccionar todas</label>
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center">
           <FaSort className="mr-2 text-gray-500" />
           <select 
@@ -78,13 +223,21 @@ export default function ActivityList({ activities, categoryId, onUpdateActivity,
           </select>
         </div>
       </div>
-      
+
       <div className="overflow-x-auto max-h-80 overflow-y-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50 sticky top-0">
             <tr>
               <th scope="col" className="px-3 py-2 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
-                Actividad
+                <div className="flex items-center">
+                  <input 
+                    type="checkbox"
+                    checked={selectedActivities.length === sortedActivities.length && sortedActivities.length > 0}
+                    onChange={handleSelectAllActivities}
+                    className="w-3 h-3 mr-1 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                  />
+                  Actividad
+                </div>
               </th>
               <th scope="col" className="px-3 py-2 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
                 Nota
@@ -106,11 +259,20 @@ export default function ActivityList({ activities, categoryId, onUpdateActivity,
               const percentage = isPending ? 0 : calculatePercentage(activity.obtained_score, activity.max_score);
               const { letter, status } = isPending ? { letter: 'N/A', status: 'Pendiente' } : assignLetterGrade(percentage);
               const statusClass = getStatusClass(letter);
-              
+              const isSelected = selectedActivities.includes(activity.id);
+
               return (
-                <tr key={activity.id} className="hover:bg-gray-50">
+                <tr key={activity.id} className={`hover:bg-gray-50 ${isSelected ? 'bg-indigo-50' : ''}`}>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <div className="font-medium text-gray-900">{activity.name}</div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleSelectActivity(activity.id)}
+                        className="w-3 h-3 mr-2 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                      />
+                      <div className="font-medium text-gray-900">{activity.name}</div>
+                    </div>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     {isPending ? (
@@ -161,8 +323,7 @@ export default function ActivityList({ activities, categoryId, onUpdateActivity,
           </tbody>
         </table>
       </div>
-      
-      {/* Modal para editar actividad */}
+
       {editingActivity && (
         <ActivityForm
           category={{ id: categoryId }}
@@ -176,13 +337,22 @@ export default function ActivityList({ activities, categoryId, onUpdateActivity,
         />
       )}
 
-      {/* Modal de confirmación para eliminar actividad */}
       <ConfirmationModal
         isOpen={confirmDelete.show}
         onClose={() => setConfirmDelete({ show: false, id: null, name: '', categoryId: null })}
         onConfirm={() => onDeleteActivity(confirmDelete.id, confirmDelete.categoryId)}
         title="Confirmar eliminación"
         message={`¿Estás seguro de eliminar la actividad "${confirmDelete.name}"?`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+      />
+
+      <ConfirmationModal
+        isOpen={confirmMultiDelete}
+        onClose={() => setConfirmMultiDelete(false)}
+        onConfirm={handleDeleteMultipleActivities}
+        title="Confirmar eliminación múltiple"
+        message={`¿Estás seguro de eliminar ${selectedActivities.length} actividad(es)? Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
         cancelText="Cancelar"
       />
