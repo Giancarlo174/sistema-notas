@@ -5,7 +5,7 @@ import SemesterList from './SemesterList';
 import SemesterForm from './SemesterForm';
 import Layout from './Layout';
 import ConfirmationModal from './ConfirmationModal';
-import { FaTrash } from 'react-icons/fa';
+import { FaTrash, FaSort } from 'react-icons/fa';
 
 export default function Dashboard() {
   const supabase = useSupabaseClient();
@@ -16,19 +16,44 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSemesters, setSelectedSemesters] = useState([]);
   const [confirmMultiDelete, setConfirmMultiDelete] = useState(false);
+  
+  // Nuevo estado para controlar el ordenamiento
+  const [sortOrder, setSortOrder] = useState(() => {
+    // Recuperar preferencia de orden del localStorage
+    if (typeof window !== 'undefined') {
+      const savedOrder = localStorage.getItem('semester_sort_order');
+      return savedOrder || 'newest'; // Por defecto, mostrar los más nuevos primero
+    }
+    return 'newest';
+  });
 
   useEffect(() => {
     if (user) fetchSemesters();
   }, [user]);
 
+  // Guardar preferencia de ordenamiento en localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('semester_sort_order', sortOrder);
+    }
+  }, [sortOrder]);
+
   async function fetchSemesters() {
     try {
       setLoading(true);
       
-      const { data, error } = await supabase
-        .from('semesters')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let query = supabase.from('semesters').select('*');
+      
+      // Aplicar orden según la preferencia
+      if (sortOrder === 'newest') {
+        query = query.order('created_at', { ascending: false });
+      } else if (sortOrder === 'oldest') {
+        query = query.order('created_at', { ascending: true });
+      } else if (sortOrder === 'alphabetical') {
+        query = query.order('name', { ascending: true });
+      }
+      
+      const { data, error } = await query;
       
       if (error) throw error;
       
@@ -39,6 +64,11 @@ export default function Dashboard() {
       setLoading(false);
     }
   }
+
+  // Cuando cambia el orden, volver a cargar los semestres
+  useEffect(() => {
+    if (user) fetchSemesters();
+  }, [sortOrder]);
 
   async function addSemester(name) {
     try {
@@ -128,6 +158,11 @@ export default function Dashboard() {
     }
   };
 
+  // Función para manejar el cambio de orden
+  const handleSortChange = (e) => {
+    setSortOrder(e.target.value);
+  };
+
   return (
     <Layout>
       <div className="container p-4 mx-auto">
@@ -153,8 +188,8 @@ export default function Dashboard() {
         </div>
 
         <div className="p-4 mb-4 bg-white rounded-lg shadow">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-            <div className="w-full md:w-1/2 mb-4 md:mb-0">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="w-full md:w-1/2">
               <input
                 type="text"
                 placeholder="Buscar semestres..."
@@ -164,17 +199,32 @@ export default function Dashboard() {
               />
             </div>
             
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="selectAll"
-                checked={allFilteredSelected && filteredSemesters.length > 0}
-                onChange={handleSelectAll}
-                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-              />
-              <label htmlFor="selectAll" className="ml-2 text-sm text-gray-700">
-                Seleccionar todos
-              </label>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center">
+                <FaSort className="mr-2 text-gray-500" />
+                <select 
+                  value={sortOrder}
+                  onChange={handleSortChange}
+                  className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="newest">Más recientes primero</option>
+                  <option value="oldest">Más antiguos primero</option>
+                  <option value="alphabetical">Orden alfabético</option>
+                </select>
+              </div>
+            
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="selectAll"
+                  checked={allFilteredSelected && filteredSemesters.length > 0}
+                  onChange={handleSelectAll}
+                  className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                />
+                <label htmlFor="selectAll" className="ml-2 text-sm text-gray-700">
+                  Seleccionar todos
+                </label>
+              </div>
             </div>
           </div>
         </div>

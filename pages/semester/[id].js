@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { useSupabaseClient, useUser } from '@supabase/auth-helpers-react';
 import { toast } from 'react-toastify';
 import Layout from '../../components/Layout';
-import { FaPlus, FaArrowLeft, FaTrash, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaArrowLeft, FaTrash, FaSearch, FaSort } from 'react-icons/fa';
 import Link from 'next/link';
 import { calculateSubjectGrade, getStatusClass } from '../../utils/gradeUtils';
 import ConfirmationModal from '../../components/ConfirmationModal';
@@ -25,11 +25,26 @@ export default function SemesterPage() {
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [confirmMultiDelete, setConfirmMultiDelete] = useState(false);
 
+  // Nuevo estado para controlar el ordenamiento de materias
+  const [sortOrder, setSortOrder] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedOrder = localStorage.getItem('subject_sort_order');
+      return savedOrder || 'newest';
+    }
+    return 'newest';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('subject_sort_order', sortOrder);
+    }
+  }, [sortOrder]);
+
   useEffect(() => {
     if (id && user) {
       fetchSemesterData();
     }
-  }, [id, user]);
+  }, [id, user, sortOrder]);
 
   async function fetchSemesterData() {
     try {
@@ -45,11 +60,22 @@ export default function SemesterPage() {
       
       setSemester(semesterData);
       
-      const { data: subjectsData, error: subjectsError } = await supabase
+      let query = supabase
         .from('subjects')
         .select('*')
-        .eq('semester_id', id)
-        .order('created_at', { ascending: false });
+        .eq('semester_id', id);
+      
+      if (sortOrder === 'newest') {
+        query = query.order('created_at', { ascending: false });
+      } else if (sortOrder === 'oldest') {
+        query = query.order('created_at', { ascending: true });
+      } else if (sortOrder === 'alphabetical') {
+        query = query.order('name', { ascending: true });
+      } else if (sortOrder === 'grade_desc') {
+        query = query.order('created_at', { ascending: false });
+      }
+      
+      const { data: subjectsData, error: subjectsError } = await query;
       
       if (subjectsError) throw subjectsError;
       
@@ -152,16 +178,17 @@ export default function SemesterPage() {
     });
   };
 
-  // Filtrar materias según el término de búsqueda
+  const handleSortChange = (e) => {
+    setSortOrder(e.target.value);
+  };
+
   const filteredSubjects = subjects.filter(subject => 
     subject.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Comprobar si todas las materias filtradas están seleccionadas
   const allFilteredSelected = filteredSubjects.length > 0 && 
     filteredSubjects.every(subj => selectedSubjects.includes(subj.id));
 
-  // Manejar "seleccionar todos"
   const handleSelectAll = () => {
     if (allFilteredSelected) {
       setSelectedSubjects(prevSelected => 
@@ -181,7 +208,6 @@ export default function SemesterPage() {
     }
   };
 
-  // Manejar selección individual
   const handleSelectSubject = (subjectId) => {
     if (selectedSubjects.includes(subjectId)) {
       setSelectedSubjects(selectedSubjects.filter(id => id !== subjectId));
@@ -221,33 +247,66 @@ export default function SemesterPage() {
             <FaArrowLeft />
           </Link>
           <h1 className="text-2xl font-bold">Semestre: {semester.name}</h1>
+          
+          <div className="ml-auto">
+            <Link 
+              href={`/subject/new?semester_id=${id}`} 
+              className="flex items-center px-4 py-2 text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
+            >
+              <FaPlus className="mr-2" /> Crear Materia
+            </Link>
+          </div>
         </div>
         
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 space-y-4 md:space-y-0">
-          <div className="w-full md:w-1/2 relative">
-            <input
-              type="text"
-              placeholder="Buscar materias..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <FaSearch className="absolute top-3 left-3 text-gray-400" />
-          </div>
-          
-          <div className="flex space-x-2">
-            {selectedSubjects.length > 0 && (
-              <button
-                onClick={() => setConfirmMultiDelete(true)}
-                className="flex items-center px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700"
-              >
-                <FaTrash className="mr-2" /> Eliminar {selectedSubjects.length}
-              </button>
-            )}
+        <div className="p-4 mb-4 bg-white rounded-lg shadow">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="w-full md:w-1/2">
+              <input
+                type="text"
+                placeholder="Buscar materias..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
             
-            <Link href={`/subject/new?semester_id=${id}`} className="flex items-center px-4 py-2 text-white bg-indigo-600 rounded-md hover:bg-indigo-700">
-              <FaPlus className="mr-2" /> Agregar Materia
-            </Link>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center">
+                <FaSort className="mr-2 text-gray-500" />
+                <select 
+                  value={sortOrder}
+                  onChange={handleSortChange}
+                  className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="newest">Más recientes primero</option>
+                  <option value="oldest">Más antiguas primero</option>
+                  <option value="alphabetical">Orden alfabético</option>
+                  <option value="grade_desc">Mejor calificación</option>
+                </select>
+              </div>
+              
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="selectAllSubjects"
+                  checked={allFilteredSelected && filteredSubjects.length > 0}
+                  onChange={handleSelectAll}
+                  className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                />
+                <label htmlFor="selectAllSubjects" className="ml-2 text-sm text-gray-700">
+                  Seleccionar todos
+                </label>
+              </div>
+              
+              {selectedSubjects.length > 0 && (
+                <button
+                  onClick={() => setConfirmMultiDelete(true)}
+                  className="flex items-center px-3 py-1 text-white bg-red-600 rounded-md hover:bg-red-700"
+                >
+                  <FaTrash className="mr-1" /> Eliminar {selectedSubjects.length}
+                </button>
+              )}
+            </div>
           </div>
         </div>
         
@@ -259,6 +318,14 @@ export default function SemesterPage() {
                 : "Aún no has agregado materias a este semestre."
               }
             </p>
+            {!searchTerm && (
+              <Link 
+                href={`/subject/new?semester_id=${id}`} 
+                className="inline-block px-4 py-2 mt-4 text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
+              >
+                <FaPlus className="inline mr-2" /> Agregar primera materia
+              </Link>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto bg-white rounded-lg shadow">
@@ -359,7 +426,6 @@ export default function SemesterPage() {
           </div>
         )}
         
-        {/* Modal para eliminar una materia */}
         <ConfirmationModal
           isOpen={confirmDelete.show}
           onClose={() => setConfirmDelete({ show: false, id: null, name: '' })}
@@ -370,7 +436,6 @@ export default function SemesterPage() {
           cancelText="Cancelar"
         />
         
-        {/* Modal para eliminación múltiple */}
         <ConfirmationModal
           isOpen={confirmMultiDelete}
           onClose={() => setConfirmMultiDelete(false)}
