@@ -87,7 +87,7 @@ export default function Layout({ children, title }) {
       <main className="container py-6 mx-auto">{children}</main>
       <footer className="bg-white border-t">
         <div className="container p-4 mx-auto text-center text-sm text-gray-500">
-          © {new Date().getFullYear()} Sistema de Seguimiento Académico
+          © 2025 - <strong>Giancarlo Santillana</strong> Todos los derechos reservados... o algo así
         </div>
       </footer>
 
