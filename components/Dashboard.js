@@ -94,6 +94,14 @@ export default function Dashboard() {
     }
   }
 
+  async function updateSemester(id, name) {
+    setSemesters(prevSemesters => 
+      prevSemesters.map(sem => 
+        sem.id === id ? { ...sem, name } : sem
+      )
+    );
+  }
+
   const filteredSemesters = semesters.filter(semester => 
     semester.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -193,6 +201,7 @@ export default function Dashboard() {
               <SemesterList 
                 semesters={filteredSemesters} 
                 onDelete={deleteSemester}
+                onUpdate={updateSemester}
                 selectedSemesters={selectedSemesters}
                 setSelectedSemesters={setSelectedSemesters}
               />

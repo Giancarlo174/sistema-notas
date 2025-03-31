@@ -9,7 +9,8 @@ import useUIState from '../hooks/useUIState';
 
 export default function SemesterList({ 
   semesters, 
-  onDelete, 
+  onDelete,
+  onUpdate, // Añadir esta prop para manejar actualizaciones
   selectedSemesters,
   setSelectedSemesters
 }) {
@@ -36,6 +37,11 @@ export default function SemesterList({
       const updatedSemesters = semesters.map(sem => 
         sem.id === editingSemester.id ? { ...sem, name } : sem
       );
+      
+      // Notificar al componente padre sobre el cambio
+      if (typeof onUpdate === 'function') {
+        onUpdate(editingSemester.id, name);
+      }
       
       toast.success('Semestre actualizado con éxito');
       setEditingSemester(null);

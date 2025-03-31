@@ -311,6 +311,42 @@ export default function SubjectPage() {
     }
   };
 
+  // Modificar la función deleteMultipleCategories
+  async function deleteMultipleCategories(categoryIds) {
+    try {
+      // Guarda una copia de las IDs seleccionadas antes de resetear la selección
+      const categoriesToDelete = [...categoryIds];
+      
+      // Actualiza primero el estado local para una respuesta UI inmediata
+      setCategories(currentCategories => 
+        currentCategories.filter(cat => !categoriesToDelete.includes(cat.id))
+      );
+      
+      // También actualiza el estado de actividades
+      const updatedActivities = { ...activities };
+      categoriesToDelete.forEach(catId => {
+        delete updatedActivities[catId];
+      });
+      setActivities(updatedActivities);
+      
+      // Luego ejecuta la operación en la base de datos
+      for (const categoryId of categoriesToDelete) {
+        const { error } = await supabase
+          .from('categories')
+          .delete()
+          .eq('id', categoryId);
+        
+        if (error) throw error;
+      }
+      
+      toast.success('Categorías eliminadas con éxito');
+    } catch (error) {
+      // Si hay error, vuelve a cargar los datos para asegurar consistencia
+      toast.error('Error eliminando categorías: ' + error.message);
+      fetchData();
+    }
+  }
+
   // Calculate the subject grade
   const gradeInfo = calculateSubjectGrade(categories, activities);
 
@@ -463,6 +499,7 @@ export default function SubjectPage() {
               onAddActivity={handleAddActivity}
               onUpdateActivity={handleUpdateActivity}
               onDeleteActivity={handleDeleteActivity}
+              onDeleteMultipleCategories={deleteMultipleCategories} // Añade esta prop
             />
           )}
         </div>
