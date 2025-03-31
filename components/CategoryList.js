@@ -116,7 +116,7 @@ export default function CategoryList({
   return (
     <div className="space-y-6">
       <div className="p-4 bg-white rounded-lg shadow mb-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+        <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:items-center md:justify-between gap-4">
           <div className="w-full md:w-1/2 relative">
             <input
               type="text"
@@ -128,7 +128,7 @@ export default function CategoryList({
             <FaSearch className="absolute top-3 left-3 text-gray-400" />
           </div>
           
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -137,7 +137,7 @@ export default function CategoryList({
                 onChange={handleSelectAll}
                 className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
               />
-              <label htmlFor="selectAllCategories" className="ml-2 text-sm text-gray-700">
+              <label htmlFor="selectAllCategories" className="ml-2 text-sm text-gray-700 whitespace-nowrap">
                 Seleccionar todos
               </label>
             </div>
@@ -145,9 +145,10 @@ export default function CategoryList({
             {selectedCategories.length > 0 && (
               <button
                 onClick={() => setConfirmMultiDelete(true)}
-                className="flex items-center px-3 py-1 text-white bg-red-600 rounded-md hover:bg-red-700"
+                className="flex items-center px-3 py-1 text-white bg-red-600 rounded-md hover:bg-red-700 whitespace-nowrap"
               >
-                <FaTrash className="mr-1" /> Eliminar {selectedCategories.length}
+                <FaTrash className="mr-1 flex-shrink-0" />
+                <span className="truncate">Eliminar {selectedCategories.length}</span>
               </button>
             )}
           </div>
